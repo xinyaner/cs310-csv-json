@@ -59,18 +59,52 @@ public class Converter {
     @SuppressWarnings("unchecked")
     public static String csvToJson(String csvString) {
         
-        String results = "";
+        String results;
         
         try {
             
             CSVReader reader = new CSVReader(new StringReader(csvString));
             List<String[]> full = reader.readAll();
             Iterator<String[]> iterator = full.iterator();
+           
+            JSONObject jsonObject = new JSONObject(); // Map
+            JSONArray rowHeaders = new JSONArray();   // List
+            JSONArray mainData = new JSONArray();     // List
+            JSONArray colHeaders = new JSONArray();   // List
             
-            // INSERT YOUR CODE HERE
+            for (String string : iterator.next()) {
+               
+                colHeaders.add(string);
+               
+            }
+            
+            while (iterator.hasNext()) {
+               
+                JSONArray rowData = new JSONArray(); // Create "rowData" list
+                
+                String[] rows = iterator.next();
+                rowHeaders.add(rows[0]);
+                for (int i=1; i < rows.length; ++i){
+                    rowData.add(rows[i]);
+                }
+                        
+                mainData.add(rowData);
+               
+            }
+           
+            // Finally, now that the JSON containers have been filled, add all
+            // three to "jsonObject".  Then, once it is fully packed, convert
+            // it to a JSON string by invoking its "toJSONString()" method.
+           
+            jsonObject.put("colHeaders", colHeaders); // Add column headers
+            jsonObject.put("rowHeaders", rowHeaders); // Add row headers
+            jsonObject.put("data", mainData);         // Add row data
+           
+            results = JSONValue.toJSONString(jsonObject); // Parse JSON string
+            
             
         }        
-        catch(Exception e) { return e.toString(); }
+        catch(IOException e) { return e.toString(); }
         
         return results.trim();
         
@@ -78,18 +112,115 @@ public class Converter {
     
     public static String jsonToCsv(String jsonString) {
         
-        String results = "";
+        String results;
         
         try {
 
             StringWriter writer = new StringWriter();
             CSVWriter csvWriter = new CSVWriter(writer, ',', '"', '\n');
             
-            // INSERT YOUR CODE HERE
+            // Parse JSON Data to a JSONObject map.
+           
+            JSONParser parser = new JSONParser();
+            JSONObject jsonObject = (JSONObject)parser.parse(jsonString);
+           
+            // Get JSON data from the JSONObject.  Recall that this data is in
+            // lists under the key names "colHeaders", "rowHeaders", and
+            // "data", and that the latter contains nested lists of integers
+            // which must later be converted back into strings.
+           
+            JSONArray colHeaders = (JSONArray)jsonObject.get("colHeaders");
+            JSONArray rowHeaders = (JSONArray)jsonObject.get("rowHeaders");
+            JSONArray data = (JSONArray)jsonObject.get("data");
+           
+            // Create empty CSV containers in the form of String arrays.
+            // These arrays must be sized according to the sizes of the
+            // original JSON lists.  We will subsequently copy the data
+            // from the JSON lists into these arrays: the column headers
+            // will be copied to "colStringArray", the row headers to
+            // "rowStringArray", and the row data to "dataStringArray".
+           
+            String[] colStringArray = new String[colHeaders.size()];
+            String[] rowStringArray = new String[rowHeaders.size()];
+            String[] dataStringArray = new String[data.size()];
+           
+            // First, get the column headers, copying each into the
+            // "colStringArray" container.
+
+            for (int i = 0; i < colHeaders.size(); i++){
+                colStringArray[i] = colHeaders.get(i).toString();
+            }
+           
+            // Next, output the column headers to the CSV writer.  (This
+            // is all we need to do with the column headers.)
+           
+            csvWriter.writeNext(colStringArray);
+           
+            // Next, get the row headers and row data.  For now, we will
+            // store them in separate arrays; later, we will recombine the
+            // row headers and row data into a single array.
+            //
+            // (Note that each list of row data is still a string at this
+            // point, like this: "[611,146,128,337]".  We will be parsing
+            // these into lists of integers using the json-simple library.)
+           
+            for (int i = 0; i < rowHeaders.size(); i++){
+           
+                // Get next row header
+           
+                rowStringArray[i] = rowHeaders.get(i).toString();
+               
+                // Get next set of row data
+               
+                dataStringArray[i] = data.get(i).toString();
+               
+            }
+
+            // Next, iterate through the lists of row headers and row data.
+            // Each will need to be recombined into a single array of strings,
+            // called "row".  To do this, we will convert the row data into a
+            // JSONArray of integers first.  Then, we will add the row header
+            // to the first element of the "row" array, and then copy the row
+            // data values into the subsequent elements of the "row" array.
+           
+            for (int i = 0; i < dataStringArray.length; i++) {
+           
+                // Parse row data (example: "[611,146,128,337]") into a JSON
+                // array called "dataValues".
+                               
+                JSONArray dataValues = (JSONArray)parser.parse(dataStringArray[i]);
+               
+                // Create a "row" array for this row, sized to the number of
+                // elements in the row.
+               
+                String[] row = new String[dataValues.size() + 1];
+               
+                // Copy the next row header from the array "rowStringArray" to
+                // the first element of "row", then copy the elements from
+                // "dataValues" into the subsequent elements, converting the
+                // elements to strings in the process.
+               
+                row[0] = rowStringArray[i];
+                
+                for (int j = 0; j < dataValues.size(); j++){
+                    row[j+1]= dataValues[j];
+                }
+                
+               
+                // Finally, now that the next row has been built, output it to
+                // the CSV writer.
+               
+                csvWriter.writeNext(row);
+               
+            }
+           
+            // Output the completed CSV data to a string
+           
+            results = writer.toString();
             
         }
         
-        catch(Exception e) { return e.toString(); }
+        catch(ParseException e) { return e.toString(); }
         
         return results.trim();
         
